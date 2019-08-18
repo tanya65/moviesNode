@@ -24,27 +24,36 @@ app.use(cors({
 var con = require('./config.js').localConnect();
 con.connect(); 
 
+
+function addActorMovie(castArr,movieId){
+    console.log("new cast: "+JSON.stringify(castArr));
+    for(let actor of castArr){
+        var sql="select * from actor_movies where actor_id='"+actor.id+"' and movie_id='"+movieId+"'";
+        con.query(sql, function (err, result) {  
+            if (err) throw err;
+            console.log("result: "+JSON.stringify(result));
+         if (result.length==0){
+            sql = "INSERT INTO actor_movies ( actor_id, movie_id) VALUES ( "+ actor.id +", "+movieId+")";  
+            con.query(sql, function (err, result) {  
+            if (err) throw err;  
+            console.log("result after insert: "+JSON.stringify(result));
+            
+        });
+         }
+        })
+
+    }
+    
+return;
+}
+
 app.post('/addNew',(req,res)=>{
 
     var sql = "INSERT INTO movies ( name, year, plot) VALUES ( '"+ req.body.name +"', '"+req.body.year+"', '"+req.body.plot+"')";  
     con.query(sql, function (err, result) {  
     if (err) throw err;  
-    console.log("1 record inserted");  
+    addActorMovie(req.body.cast,result.insertId);
     });
-
-    let actorsArr=new Array;
-    let cast=req.body.cast;
-    cast=cast.trim();
-    actorsArr=cast.split(',');
-    console.log("actorsarr: "+actorsArr);
-
-    for(let actor of actorsArr){
-        console.log("actor:"+actor);
-        if(!(actor in listOfActors)){
-            sql = "INSERT INTO actors ()" 
-            
-        }
-    }
 
     res.send("1 record inserted");
 
@@ -56,9 +65,47 @@ app.get('/getActors',(req,res)=>{
     .then((actors)=>{
         res.send(actors);
     });
+})
+
+app.post('/getActorsByMovie',(req,res)=>{
+    let actorList=[];
+    
+    query("select actor_id from actor_movies where movie_id="+req.body.id)
+    .then((actors)=>{
+        res.send(actors);
+    });
 
 })
 
+
+app.post('/updateMovie',(req,res)=>{
+    
+    var sql = "UPDATE movies SET name='"+req.body.name+"', year='"+req.body.year+"',plot='"+req.body.plot+"' where id='"+req.body.id+"'";  
+    con.query(sql, function (err, result) {  
+    if (err) throw err;  
+    addActorMovie(req.body.newCast,req.body.id);
+    for(let actor of req.body.deletedCast){
+        sql="DELETE FROM actor_movies WHERE movie_id='"+req.body.id+"' and actor_id='"+actor.id+"'";
+        con.query(sql, function (err, result) {
+            if (err) throw err;  
+        });
+    }
+    setTimeout(function () {
+        res.send("done!");
+    }, 3000); 
+    
+    });
+});
+
+app.post('/addActor',(req,res)=>{
+
+    var sql = "INSERT INTO actors ( name, sex, DoB, Bio) VALUES ( '"+ req.body.name +"', '"+req.body.sex+"', '"+req.body.dob+"','"+req.body.bio+"')";  
+    con.query(sql, function (err, result) {  
+    if (err) throw err;  
+   res.send(JSON.stringify(result));
+    })
+    
+})
 
 app.get('/getMovies',(req,res)=>{
         
@@ -68,25 +115,25 @@ app.get('/getMovies',(req,res)=>{
     query("select * from actors")
     .then((actors)=>{
         this.listOfActors=new Object();
-        console.log("inside .then actors ");
+       
         for(let actor of actors){
             listOfActors[actor.name]=actor.id;
             actorsList[actor.id]=actor.name;
         }
-        console.log("actorlist: "+JSON.stringify(actorsList));
+       
         query("select * from actor_movies")
         .then((rows)=>{
-            console.log("inside .then actor_movies");
+           
             for(let row of rows){
                 if(actorMovieList[row.movie_id]==null){
                     actorMovieList[row.movie_id]=new Array();
                 }
                 actorMovieList[row.movie_id].push(actorsList[row.actor_id]);
             }
-           console.log("actormovies: "+JSON.stringify(actorMovieList));
+          
         query("select * from movies")
         .then((movies)=>{
-            console.log("inside .then movies");
+           
             for(let movie of movies){
                 movie=Object.assign(movie,{"cast":actorMovieList[movie.id]});
                 moviesList.push(movie);
@@ -109,9 +156,9 @@ function query(sql, args){
             resolve( rows );
         } );
     } );
-    }
+}
 
 
 app.listen(8081,()=>{
     console.log("listening..");
-});
+})
